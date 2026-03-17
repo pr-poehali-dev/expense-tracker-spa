@@ -47,11 +47,13 @@ export default function LoginPage({ onLogin }: Props) {
         if (!form.email) { setError("Введите email"); return; }
         const res = await api.resetRequest(form.email);
         if (res.token) {
-          setInfo(`Токен (SMTP не настроен): ${res.token}`);
+          // SMTP не настроен или ошибка — показываем токен напрямую
+          const errDetail = res.smtp_error ? ` (${res.smtp_error})` : "";
+          setInfo(`Письмо не отправлено${errDetail}. Ваш токен: ${res.token}`);
         } else {
-          setInfo(res.message || "Письмо отправлено на ваш email");
+          setInfo(res.message || "Письмо с токеном отправлено на ваш email");
         }
-        setTimeout(() => goTo("reset-confirm"), 2500);
+        setTimeout(() => goTo("reset-confirm"), 3500);
 
       } else if (mode === "reset-confirm") {
         if (!form.token || !form.newPassword) { setError("Заполните все поля"); return; }

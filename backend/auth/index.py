@@ -66,19 +66,23 @@ def get_user_by_session(conn, session_id: str):
     return {"id": row[0], "login": row[1], "email": row[2]}
 
 
-def send_reset_email(to_email: str, token: str):
-    smtp_host = os.environ.get("SMTP_HOST", "")
+def send_reset_email(to_email: str, token: str) -> tuple:
+    """Возвращает (success: bool, error_msg: str)"""
+    smtp_host = os.environ.get("SMTP_HOST", "").strip()
     smtp_port = int(os.environ.get("SMTP_PORT", "465"))
-    smtp_user = os.environ.get("SMTP_USER", "")
-    smtp_pass = os.environ.get("SMTP_PASS", "")
+    smtp_user = os.environ.get("SMTP_USER", "").strip()
+    smtp_pass = os.environ.get("SMTP_PASS", "").strip()
 
-    if not smtp_host or not smtp_user:
-        return False
+    if not smtp_host or not smtp_user or not smtp_pass:
+        return False, "SMTP не настроен"
+
+    from_header = f"ФинКонтроль <{smtp_user}>"
 
     msg = MIMEMultipart("alternative")
     msg["Subject"] = "Сброс пароля — ФинКонтроль"
-    msg["From"] = smtp_user
+    msg["From"] = from_header
     msg["To"] = to_email
+    msg["Reply-To"] = smtp_user
 
     text_body = (
         "Здравствуйте!\n\n"
@@ -108,18 +112,18 @@ def send_reset_email(to_email: str, token: str):
     msg.attach(MIMEText(text_body, "plain", "utf-8"))
     msg.attach(MIMEText(html_body, "html", "utf-8"))
 
-    if smtp_port == 465:
-        import ssl
+    import ssl
+    import sys
+    try:
         ctx = ssl.create_default_context()
-        with smtplib.SMTP_SSL(smtp_host, smtp_port, context=ctx) as server:
+        with smtplib.SMTP_SSL(smtp_host, smtp_port, context=ctx, timeout=15) as server:
+            server.ehlo(smtp_host)
             server.login(smtp_user, smtp_pass)
-            server.sendmail(smtp_user, to_email, msg.as_string())
-    else:
-        with smtplib.SMTP(smtp_host, smtp_port) as server:
-            server.starttls()
-            server.login(smtp_user, smtp_pass)
-            server.sendmail(smtp_user, to_email, msg.as_string())
-    return True
+            server.sendmail(smtp_user, [to_email], msg.as_string())
+        return True, ""
+    except Exception as exc:
+        print(f"SMTP error: {exc}", file=sys.stderr)
+        return False, str(exc)
 
 
 def handler(event: dict, context) -> dict:
@@ -246,16 +250,13 @@ def handler(event: dict, context) -> dict:
             conn.commit()
             cur.close()
 
-            email_sent = False
-            try:
-                email_sent = send_reset_email(email, token)
-            except Exception:
-                pass
+            email_sent, smtp_err = send_reset_email(email, token)
 
             if email_sent:
                 return ok({"ok": True, "message": "Письмо с токеном отправлено на ваш email"})
             else:
-                return ok({"ok": True, "token": token, "message": "Токен сброса (SMTP не настроен — показываем напрямую):"})
+                # Если SMTP не настроен или ошибка — возвращаем токен напрямую (для разработки)
+                return ok({"ok": True, "token": token, "smtp_error": smtp_err, "message": "Письмо не отправлено. Токен для ввода:"})
 
         # ── reset-confirm ──────────────────────────────────────────────────────
         if action == "reset-confirm":
