@@ -1,14 +1,47 @@
+import { useState } from "react";
 import Icon from "@/components/ui/icon";
-import { Transaction, Settings, CATEGORY_COLORS, formatMoney, formatDate } from "@/types";
+import { Transaction, Goal, Settings, CATEGORY_COLORS, formatMoney, formatDateTime } from "@/types";
+import { api } from "@/api";
 
-export default function Dashboard({ transactions, settings }: { transactions: Transaction[]; settings: Settings }) {
-  const balance = transactions.reduce((acc, t) =>
-    t.type === "income" ? acc + t.amount : acc - t.amount, 0
-  );
+interface Props {
+  transactions: Transaction[];
+  goal: Goal | null;
+  settings: Settings;
+  onGoalFunded: (tx: Transaction, newCurrent: number) => void;
+}
+
+export default function Dashboard({ transactions, goal, settings, onGoalFunded }: Props) {
+  const [fundAmount, setFundAmount] = useState("");
+  const [fundError, setFundError] = useState("");
+  const [fundLoading, setFundLoading] = useState(false);
+
+  const balance = transactions.reduce((acc, t) => {
+    if (t.type === "income") return acc + t.amount;
+    if (t.type === "expense") return acc - t.amount;
+    return acc - t.amount; // transfer уменьшает баланс
+  }, 0);
   const totalIncome = transactions.filter(t => t.type === "income").reduce((a, t) => a + t.amount, 0);
   const totalExpense = transactions.filter(t => t.type === "expense").reduce((a, t) => a + t.amount, 0);
   const recent = [...transactions].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(0, 5);
-  const goalPct = Math.min(100, Math.round((settings.goalCurrent / settings.goalTarget) * 100));
+  const goalPct = goal ? Math.min(100, Math.round((goal.current / goal.target) * 100)) : 0;
+
+  const handleFund = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const amt = parseFloat(fundAmount);
+    if (!fundAmount || isNaN(amt) || amt <= 0) { setFundError("Введите корректную сумму"); return; }
+    if (amt > balance) { setFundError("Недостаточно средств на балансе"); return; }
+    setFundLoading(true);
+    try {
+      const res = await api.fundGoal(amt);
+      onGoalFunded(res.transaction, res.new_current);
+      setFundAmount("");
+      setFundError("");
+    } catch (e: unknown) {
+      setFundError(e instanceof Error ? e.message : "Ошибка");
+    } finally {
+      setFundLoading(false);
+    }
+  };
 
   return (
     <div className="page-content animate-fade-in">
@@ -38,47 +71,69 @@ export default function Dashboard({ transactions, settings }: { transactions: Tr
       <div className="dashboard-grid">
         <div className="card">
           <h3 className="card-title">Последние операции</h3>
-          <div className="tx-list">
-            {recent.map((t) => (
-              <div key={t.id} className="tx-row">
-                <div className="tx-cat-dot" style={{ background: CATEGORY_COLORS[t.category] || "#888" }} />
-                <div className="tx-info">
-                  <span className="tx-cat">{t.category}</span>
-                  <span className="tx-comment">{t.comment}</span>
+          {recent.length === 0 ? (
+            <p className="empty-state">Нет транзакций. Добавьте первую!</p>
+          ) : (
+            <div className="tx-list">
+              {recent.map((t) => (
+                <div key={t.id} className="tx-row">
+                  <div className="tx-cat-dot" style={{
+                    background: t.type === "transfer" ? "#9CA3AF" : (CATEGORY_COLORS[t.category] || "#888")
+                  }} />
+                  <div className="tx-info">
+                    <span className="tx-cat">{t.type === "transfer" ? "Перевод" : t.category}</span>
+                    <span className="tx-comment">{t.comment}</span>
+                  </div>
+                  <div className="tx-right">
+                    <span className={`tx-amount ${t.type === "income" ? "tx-amount--plus" : t.type === "transfer" ? "tx-amount--neutral" : "tx-amount--minus"}`}>
+                      {t.type === "income" ? "+" : "−"}{formatMoney(t.amount, settings.currency)}
+                    </span>
+                    <span className="tx-date">{formatDateTime(t.date)}</span>
+                  </div>
                 </div>
-                <div className="tx-right">
-                  <span className={`tx-amount ${t.type === "income" ? "tx-amount--plus" : "tx-amount--minus"}`}>
-                    {t.type === "income" ? "+" : "−"}{formatMoney(t.amount, settings.currency)}
-                  </span>
-                  <span className="tx-date">{formatDate(t.date)}</span>
-                </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
 
         <div className="card">
           <h3 className="card-title">Финансовая цель</h3>
-          <div className="goal-block">
-            <div className="goal-header">
-              <Icon name="Target" size={24} color="#FBBF24" />
-              <span className="goal-name">{settings.goalName}</span>
-            </div>
-            <div className="goal-progress-wrap">
-              <div className="goal-progress-track">
-                <div className="goal-progress-fill" style={{ width: `${goalPct}%` }} />
+          {!goal ? (
+            <p className="empty-state">Цель не задана. Настройте её в разделе «Настройки».</p>
+          ) : (
+            <div className="goal-block">
+              <div className="goal-header">
+                <Icon name="Target" size={24} color="#FBBF24" />
+                <span className="goal-name">{goal.name}</span>
               </div>
+              <div className="goal-progress-wrap">
+                <div className="goal-progress-track">
+                  <div className="goal-progress-fill" style={{ width: `${goalPct}%` }} />
+                </div>
+              </div>
+              <div className="goal-stats">
+                <span className="goal-pct">{goalPct}%</span>
+                <span className="goal-amounts">
+                  {formatMoney(goal.current, settings.currency)} из {formatMoney(goal.target, settings.currency)}
+                </span>
+              </div>
+              <p className="goal-remain">Осталось: {formatMoney(goal.target - goal.current, settings.currency)}</p>
+
+              <form onSubmit={handleFund} className="goal-fund-form">
+                <div className="field-wrap">
+                  <span className="field-icon currency-sym" style={{ color: "var(--c-text-soft)" }}>+</span>
+                  <input className="field-input" type="number" min="0.01" step="0.01"
+                    placeholder="Пополнить на сумму..."
+                    value={fundAmount} onChange={e => { setFundAmount(e.target.value); setFundError(""); }} />
+                </div>
+                {fundError && <p className="field-error" style={{ marginTop: 4 }}>{fundError}</p>}
+                <button className="btn-primary btn-fund" type="submit" disabled={fundLoading}>
+                  {fundLoading ? <span className="spinner" /> : <Icon name="ArrowUpRight" size={14} />}
+                  Пополнить
+                </button>
+              </form>
             </div>
-            <div className="goal-stats">
-              <span className="goal-pct">{goalPct}%</span>
-              <span className="goal-amounts">
-                {formatMoney(settings.goalCurrent, settings.currency)} из {formatMoney(settings.goalTarget, settings.currency)}
-              </span>
-            </div>
-            <p className="goal-remain">
-              Осталось: {formatMoney(settings.goalTarget - settings.goalCurrent, settings.currency)}
-            </p>
-          </div>
+          )}
         </div>
       </div>
     </div>

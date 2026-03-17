@@ -337,6 +337,67 @@ input[type="number"]::-webkit-inner-spin-button {
   color: rgba(255, 255, 255, 0.3);
 }
 
+/* ── Login Tabs ───────────────────────────────────────────────────────────── */
+.login-tabs {
+  display: flex;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 10px;
+  padding: 4px;
+  margin-bottom: 4px;
+}
+.login-tab {
+  flex: 1;
+  padding: 9px;
+  border-radius: 7px;
+  font-size: 13px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.45);
+  transition: all 0.18s;
+}
+.login-tab--active {
+  background: var(--c-accent);
+  color: #fff;
+}
+
+.reset-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.8);
+  margin-bottom: 4px;
+}
+
+.reset-hint {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.45);
+  line-height: 1.5;
+}
+
+.forgot-link {
+  font-size: 12px;
+  color: var(--c-accent);
+  text-align: left;
+  text-decoration: underline;
+  margin-top: -4px;
+  transition: opacity 0.15s;
+}
+.forgot-link:hover {
+  opacity: 0.75;
+}
+
+.required-mark {
+  color: var(--c-danger);
+}
+
+.field-info {
+  font-size: 12px;
+  color: var(--c-accent);
+  padding: 4px 0;
+  word-break: break-all;
+}
+
 /* ── Fields ───────────────────────────────────────────────────────────────── */
 .field-group {
   display: flex;
@@ -481,6 +542,29 @@ input[type="number"]::-webkit-inner-spin-button {
   border-top-color: #fff;
   border-radius: 50%;
   animation: spin 0.7s linear infinite;
+  flex-shrink: 0;
+}
+
+.btn-logout {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 20px;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  color: var(--c-danger);
+  font-size: 14px;
+  font-weight: 600;
+  font-family: "Poppins", sans-serif;
+  border-radius: var(--radius-btn);
+  transition: all 0.18s;
+}
+.btn-logout:hover {
+  background: rgba(239, 68, 68, 0.2);
+}
+.btn-logout:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 /* ── Page Content ─────────────────────────────────────────────────────────── */
@@ -687,6 +771,9 @@ input[type="number"]::-webkit-inner-spin-button {
 .tx-amount--minus {
   color: var(--c-danger);
 }
+.tx-amount--neutral {
+  color: var(--c-text-soft);
+}
 .tx-date {
   display: block;
   font-size: 11px;
@@ -780,6 +867,20 @@ input[type="number"]::-webkit-inner-spin-button {
 .goal-remain {
   font-size: 13px;
   color: var(--c-text-soft);
+}
+
+.goal-fund-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--c-border);
+}
+
+.btn-fund {
+  align-self: flex-start;
+  padding: 9px 16px;
+  font-size: 13px;
 }
 
 /* ── Transactions Page ────────────────────────────────────────────────────── */

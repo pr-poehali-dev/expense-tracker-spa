@@ -1,44 +1,64 @@
 import { useState } from "react";
 import Icon from "@/components/ui/icon";
-import { Transaction, Settings, TxType, CATEGORIES, CATEGORY_COLORS, CURRENCIES, formatMoney, formatDate } from "@/types";
+import { Transaction, Settings, TxType, EXPENSE_CATEGORIES, INCOME_CATEGORIES, CATEGORY_COLORS, CURRENCIES, formatMoney, formatDateTime } from "@/types";
+import { api } from "@/api";
 
-export default function TransactionsPage({
-  transactions,
-  setTransactions,
-  settings,
-}: {
+interface Props {
   transactions: Transaction[];
-  setTransactions: React.Dispatch<React.SetStateAction<Transaction[]>>;
   settings: Settings;
-}) {
-  const empty = { amount: "", category: CATEGORIES[0].name, comment: "", type: "expense" as TxType };
+  onAdd: (tx: Transaction) => void;
+  onUpdate: (tx: Transaction) => void;
+  onRemove: (id: string) => void;
+}
+
+export default function TransactionsPage({ transactions, settings, onAdd, onUpdate, onRemove }: Props) {
+  const empty = { amount: "", category: EXPENSE_CATEGORIES[0].name, comment: "", type: "expense" as TxType };
   const [form, setForm] = useState(empty);
   const [editId, setEditId] = useState<string | null>(null);
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const categories = form.type === "income" ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
+
+  const handleTypeChange = (type: TxType) => {
+    const defaultCat = type === "income" ? INCOME_CATEGORIES[0].name : EXPENSE_CATEGORIES[0].name;
+    setForm(f => ({ ...f, type, category: defaultCat }));
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const amt = parseFloat(form.amount);
     if (!form.amount || isNaN(amt) || amt <= 0) { setError("Введите корректную сумму"); return; }
-    if (editId) {
-      setTransactions(prev => prev.map(t => t.id === editId ? { ...t, amount: amt, category: form.category, comment: form.comment, type: form.type } : t));
-      setEditId(null);
-    } else {
-      const tx: Transaction = { id: Date.now().toString(), amount: amt, category: form.category, comment: form.comment, type: form.type, date: new Date().toISOString() };
-      setTransactions(prev => [tx, ...prev]);
+    setLoading(true);
+    try {
+      if (editId) {
+        await api.updateTransaction(Number(editId), { amount: amt, category: form.category, comment: form.comment, type: form.type });
+        onUpdate({ id: editId, amount: amt, category: form.category, comment: form.comment, type: form.type, date: new Date().toISOString() });
+        setEditId(null);
+      } else {
+        const res = await api.addTransaction({ amount: amt, category: form.category, comment: form.comment, type: form.type });
+        onAdd({ id: String(res.id), amount: amt, category: form.category, comment: form.comment, type: form.type, date: res.date });
+      }
+      setForm(empty);
+      setError("");
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Ошибка");
+    } finally {
+      setLoading(false);
     }
-    setForm(empty);
-    setError("");
   };
 
   const startEdit = (t: Transaction) => {
     setEditId(t.id);
-    setForm({ amount: t.amount.toString(), category: t.category, comment: t.comment, type: t.type });
+    setForm({ amount: t.amount.toString(), category: t.category, comment: t.comment, type: t.type as TxType });
   };
 
-  const remove = (id: string) => setTransactions(prev => prev.filter(t => t.id !== id));
-  const cancel = () => { setEditId(null); setForm(empty); setError(""); };
+  const remove = async (id: string) => {
+    await api.removeTransaction(Number(id));
+    onRemove(id);
+  };
 
+  const cancel = () => { setEditId(null); setForm(empty); setError(""); };
   const sorted = [...transactions].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
   return (
@@ -55,11 +75,11 @@ export default function TransactionsPage({
               <label className="field-label">Тип</label>
               <div className="type-toggle">
                 <button type="button" className={`type-btn ${form.type === "expense" ? "type-btn--active-red" : ""}`}
-                  onClick={() => setForm(f => ({ ...f, type: "expense" }))}>
+                  onClick={() => handleTypeChange("expense")}>
                   <Icon name="TrendingDown" size={14} /> Расход
                 </button>
                 <button type="button" className={`type-btn ${form.type === "income" ? "type-btn--active-green" : ""}`}
-                  onClick={() => setForm(f => ({ ...f, type: "income" }))}>
+                  onClick={() => handleTypeChange("income")}>
                   <Icon name="TrendingUp" size={14} /> Доход
                 </button>
               </div>
@@ -79,7 +99,7 @@ export default function TransactionsPage({
                   <Icon name="Tag" size={16} className="field-icon" />
                   <select className="field-input field-select" value={form.category}
                     onChange={e => setForm(f => ({ ...f, category: e.target.value }))}>
-                    {CATEGORIES.map(c => <option key={c.name} value={c.name}>{c.name}</option>)}
+                    {categories.map(c => <option key={c.name} value={c.name}>{c.name}</option>)}
                   </select>
                 </div>
               </div>
@@ -94,8 +114,8 @@ export default function TransactionsPage({
             </div>
             {error && <p className="field-error">{error}</p>}
             <div className="form-actions">
-              <button className="btn-primary" type="submit">
-                <Icon name={editId ? "Save" : "Plus"} size={16} />
+              <button className="btn-primary" type="submit" disabled={loading}>
+                {loading ? <span className="spinner" /> : <Icon name={editId ? "Save" : "Plus"} size={16} />}
                 {editId ? "Сохранить" : "Добавить"}
               </button>
               {editId && <button className="btn-ghost" type="button" onClick={cancel}>Отмена</button>}
@@ -109,25 +129,29 @@ export default function TransactionsPage({
             {sorted.length === 0 && <p className="empty-state">Нет транзакций. Добавьте первую!</p>}
             {sorted.map((t) => (
               <div key={t.id} className="tx-row tx-row--editable">
-                <div className="tx-cat-dot" style={{ background: CATEGORY_COLORS[t.category] || "#888" }} />
+                <div className="tx-cat-dot" style={{
+                  background: t.type === "transfer" ? "#9CA3AF" : (CATEGORY_COLORS[t.category] || "#888")
+                }} />
                 <div className="tx-info">
-                  <span className="tx-cat">{t.category}</span>
+                  <span className="tx-cat">{t.type === "transfer" ? "Перевод" : t.category}</span>
                   <span className="tx-comment">{t.comment || "—"}</span>
                 </div>
                 <div className="tx-right">
-                  <span className={`tx-amount ${t.type === "income" ? "tx-amount--plus" : "tx-amount--minus"}`}>
+                  <span className={`tx-amount ${t.type === "income" ? "tx-amount--plus" : t.type === "transfer" ? "tx-amount--neutral" : "tx-amount--minus"}`}>
                     {t.type === "income" ? "+" : "−"}{formatMoney(t.amount, settings.currency)}
                   </span>
-                  <span className="tx-date">{formatDate(t.date)}</span>
+                  <span className="tx-date">{formatDateTime(t.date)}</span>
                 </div>
-                <div className="tx-actions">
-                  <button className="icon-btn icon-btn--edit" onClick={() => startEdit(t)} title="Редактировать">
-                    <Icon name="Pencil" size={14} />
-                  </button>
-                  <button className="icon-btn icon-btn--delete" onClick={() => remove(t.id)} title="Удалить">
-                    <Icon name="Trash2" size={14} />
-                  </button>
-                </div>
+                {t.type !== "transfer" && (
+                  <div className="tx-actions">
+                    <button className="icon-btn icon-btn--edit" onClick={() => startEdit(t)} title="Редактировать">
+                      <Icon name="Pencil" size={14} />
+                    </button>
+                    <button className="icon-btn icon-btn--delete" onClick={() => remove(t.id)} title="Удалить">
+                      <Icon name="Trash2" size={14} />
+                    </button>
+                  </div>
+                )}
               </div>
             ))}
           </div>

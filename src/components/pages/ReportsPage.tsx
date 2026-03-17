@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import Icon from "@/components/ui/icon";
-import { Transaction, Settings, CATEGORIES, formatMoney } from "@/types";
+import { Transaction, Settings, ALL_CATEGORIES, formatMoney } from "@/types";
 
 export default function ReportsPage({ transactions, settings }: { transactions: Transaction[]; settings: Settings }) {
   const [period, setPeriod] = useState<"week" | "month" | "year">("month");
@@ -13,7 +13,7 @@ export default function ReportsPage({ transactions, settings }: { transactions: 
   const cutoff = now - ms * 86400000;
   const filtered = transactions.filter(t => t.type === "expense" && new Date(t.date).getTime() > cutoff);
   const totalExpense = filtered.reduce((a, t) => a + t.amount, 0);
-  const byCategory = CATEGORIES.map(c => ({
+  const byCategory = ALL_CATEGORIES.map(c => ({
     name: c.name,
     amount: filtered.filter(t => t.category === c.name).reduce((a, t) => a + t.amount, 0),
     color: c.color,

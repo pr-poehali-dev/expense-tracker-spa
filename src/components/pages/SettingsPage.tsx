@@ -1,28 +1,46 @@
 import { useState } from "react";
 import Icon from "@/components/ui/icon";
-import { Settings, CURRENCIES } from "@/types";
+import { Settings, Goal, CURRENCIES } from "@/types";
+import { api } from "@/api";
 
-export default function SettingsPage({
-  settings,
-  setSettings,
-}: {
+interface Props {
   settings: Settings;
-  setSettings: React.Dispatch<React.SetStateAction<Settings>>;
-}) {
-  const [goalName, setGoalName] = useState(settings.goalName);
-  const [goalTarget, setGoalTarget] = useState(settings.goalTarget.toString());
-  const [goalCurrent, setGoalCurrent] = useState(settings.goalCurrent.toString());
-  const [saved, setSaved] = useState(false);
+  goal: Goal | null;
+  onSettingsChange: (s: Settings) => void;
+  onGoalChange: (g: Goal) => void;
+  onLogout: () => void;
+}
 
-  const save = () => {
-    setSettings(s => ({
-      ...s,
-      goalName,
-      goalTarget: parseFloat(goalTarget) || s.goalTarget,
-      goalCurrent: parseFloat(goalCurrent) || s.goalCurrent,
-    }));
+export default function SettingsPage({ settings, goal, onSettingsChange, onGoalChange, onLogout }: Props) {
+  const [goalName, setGoalName] = useState(goal?.name || "");
+  const [goalTarget, setGoalTarget] = useState(goal?.target?.toString() || "");
+  const [goalCurrent, setGoalCurrent] = useState(goal?.current?.toString() || "");
+  const [saved, setSaved] = useState(false);
+  const [logoutLoading, setLogoutLoading] = useState(false);
+
+  const saveGoal = async () => {
+    const target = parseFloat(goalTarget) || 0;
+    const current = parseFloat(goalCurrent) || 0;
+    await api.saveGoal({ name: goalName, target, current });
+    onGoalChange({ name: goalName, target, current });
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
+  };
+
+  const handleSettingsChange = async (newSettings: Settings) => {
+    onSettingsChange(newSettings);
+    await api.saveSettings(newSettings);
+  };
+
+  const handleLogout = async () => {
+    setLogoutLoading(true);
+    try {
+      await api.logout();
+    } finally {
+      localStorage.removeItem("session_id");
+      setLogoutLoading(false);
+      onLogout();
+    }
   };
 
   return (
@@ -44,7 +62,7 @@ export default function SettingsPage({
                 {Object.entries(CURRENCIES).map(([code, sym]) => (
                   <button key={code}
                     className={`currency-btn ${settings.currency === code ? "currency-btn--active" : ""}`}
-                    onClick={() => setSettings(s => ({ ...s, currency: code }))}>
+                    onClick={() => handleSettingsChange({ ...settings, currency: code })}>
                     {sym} {code}
                   </button>
                 ))}
@@ -58,11 +76,11 @@ export default function SettingsPage({
               </div>
               <div className="theme-toggle">
                 <button className={`theme-btn ${settings.theme === "dark" ? "theme-btn--active" : ""}`}
-                  onClick={() => setSettings(s => ({ ...s, theme: "dark" }))}>
+                  onClick={() => handleSettingsChange({ ...settings, theme: "dark" })}>
                   <Icon name="Moon" size={16} /> Тёмная
                 </button>
                 <button className={`theme-btn ${settings.theme === "light" ? "theme-btn--active" : ""}`}
-                  onClick={() => setSettings(s => ({ ...s, theme: "light" }))}>
+                  onClick={() => handleSettingsChange({ ...settings, theme: "light" })}>
                   <Icon name="Sun" size={16} /> Светлая
                 </button>
               </div>
@@ -77,7 +95,8 @@ export default function SettingsPage({
               <label className="field-label">Название цели</label>
               <div className="field-wrap">
                 <Icon name="Target" size={16} className="field-icon" />
-                <input className="field-input" type="text" value={goalName} onChange={e => setGoalName(e.target.value)} />
+                <input className="field-input" type="text" placeholder="Например: Накопить на отпуск"
+                  value={goalName} onChange={e => setGoalName(e.target.value)} />
               </div>
             </div>
             <div className="form-row form-row--2">
@@ -85,47 +104,37 @@ export default function SettingsPage({
                 <label className="field-label">Цель ({CURRENCIES[settings.currency]})</label>
                 <div className="field-wrap">
                   <span className="field-icon currency-sym">{CURRENCIES[settings.currency]}</span>
-                  <input className="field-input" type="number" value={goalTarget} onChange={e => setGoalTarget(e.target.value)} />
+                  <input className="field-input" type="number" placeholder="0"
+                    value={goalTarget} onChange={e => setGoalTarget(e.target.value)} />
                 </div>
               </div>
               <div className="field-group">
-                <label className="field-label">Накоплено ({CURRENCIES[settings.currency]})</label>
+                <label className="field-label">Уже накоплено</label>
                 <div className="field-wrap">
                   <span className="field-icon currency-sym">{CURRENCIES[settings.currency]}</span>
-                  <input className="field-input" type="number" value={goalCurrent} onChange={e => setGoalCurrent(e.target.value)} />
+                  <input className="field-input" type="number" placeholder="0"
+                    value={goalCurrent} onChange={e => setGoalCurrent(e.target.value)} />
                 </div>
               </div>
             </div>
-            <button className="btn-primary" onClick={save}>
-              {saved ? <><Icon name="Check" size={16} /> Сохранено!</> : <><Icon name="Save" size={16} /> Сохранить</>}
+            <button className="btn-primary" onClick={saveGoal}>
+              {saved
+                ? <><Icon name="Check" size={16} /> Сохранено!</>
+                : <><Icon name="Save" size={16} /> Сохранить цель</>}
             </button>
           </div>
         </div>
 
         <div className="card">
-          <h3 className="card-title">О проекте</h3>
-          <div className="about-block">
-            <div className="about-row">
-              <Icon name="GraduationCap" size={20} color="#FBBF24" />
-              <div>
-                <p className="about-label">Дипломный проект</p>
-                <p className="about-val">Создание веб-сайта для контроля личных расходов</p>
-              </div>
-            </div>
-            <div className="about-row">
-              <Icon name="Code2" size={20} color="#10B981" />
-              <div>
-                <p className="about-label">Технологии</p>
-                <p className="about-val">React · TypeScript · Chart.js · LocalStorage</p>
-              </div>
-            </div>
-            <div className="about-row">
-              <Icon name="Palette" size={20} color="#3B82F6" />
-              <div>
-                <p className="about-label">Дизайн</p>
-                <p className="about-val">Poppins + Roboto · Тёмно-синяя гамма</p>
-              </div>
-            </div>
+          <h3 className="card-title">Аккаунт</h3>
+          <div className="settings-section">
+            <p className="setting-desc" style={{ marginBottom: 8 }}>
+              Все данные сохранены в вашем аккаунте. При выходе вам нужно будет войти заново.
+            </p>
+            <button className="btn-logout" onClick={handleLogout} disabled={logoutLoading}>
+              {logoutLoading ? <span className="spinner" /> : <Icon name="LogOut" size={16} />}
+              Выйти из аккаунта
+            </button>
           </div>
         </div>
       </div>
