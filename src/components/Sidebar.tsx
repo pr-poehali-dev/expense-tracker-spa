@@ -1,13 +1,21 @@
 import Icon from "@/components/ui/icon";
-import { Page } from "@/types";
+import { Page, User } from "@/types";
 
-export default function Sidebar({ page, setPage }: { page: Page; setPage: (p: Page) => void }) {
+interface Props {
+  page: Page;
+  setPage: (p: Page) => void;
+  user: User | null;
+}
+
+export default function Sidebar({ page, setPage, user }: Props) {
   const items = [
     { id: "dashboard", label: "Главная", icon: "LayoutDashboard" },
     { id: "transactions", label: "Транзакции", icon: "ArrowLeftRight" },
     { id: "reports", label: "Отчёты", icon: "BarChart2" },
     { id: "settings", label: "Настройки", icon: "Settings" },
   ] as const;
+
+  const avatarLetter = user?.login ? user.login[0].toUpperCase() : "?";
 
   return (
     <aside className="sidebar">
@@ -31,10 +39,10 @@ export default function Sidebar({ page, setPage }: { page: Page; setPage: (p: Pa
       </nav>
       <div className="sidebar-footer">
         <div className="sidebar-user">
-          <div className="user-avatar">Д</div>
+          <div className="user-avatar">{avatarLetter}</div>
           <div>
-            <p className="user-name">Демо пользователь</p>
-            <p className="user-role">Личный аккаунт</p>
+            <p className="user-name">{user?.login || "—"}</p>
+            <p className="user-role">{user?.email || "Личный аккаунт"}</p>
           </div>
         </div>
       </div>

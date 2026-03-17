@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import Icon from "@/components/ui/icon";
-import { Page, Transaction, Goal, Settings, DEFAULT_SETTINGS } from "@/types";
+import { Page, Transaction, Goal, Settings, User, DEFAULT_SETTINGS } from "@/types";
 import { api } from "@/api";
 import LoginPage from "@/components/LoginPage";
 import Sidebar from "@/components/Sidebar";
@@ -12,6 +12,7 @@ import SettingsPage from "@/components/pages/SettingsPage";
 export default function App() {
   const [page, setPage] = useState<Page>("login");
   const [sessionId, setSessionId] = useState<string>(() => localStorage.getItem("session_id") || "");
+  const [user, setUser] = useState<User | null>(null);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [goal, setGoal] = useState<Goal | null>(null);
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
@@ -33,6 +34,7 @@ export default function App() {
       api.getSettings(),
     ]).then(([meRes, txRes, goalRes, settingsRes]) => {
       if (meRes?.user) {
+        setUser(meRes.user);
         setTransactions(txRes.transactions || []);
         setGoal(goalRes.goal || null);
         setSettings(settingsRes.settings || DEFAULT_SETTINGS);
@@ -52,6 +54,7 @@ export default function App() {
 
   const handleLogout = () => {
     setSessionId("");
+    setUser(null);
     setTransactions([]);
     setGoal(null);
     setSettings(DEFAULT_SETTINGS);
@@ -77,7 +80,7 @@ export default function App() {
       </button>
       {menuOpen && <div className="mobile-overlay" onClick={() => setMenuOpen(false)} />}
       <div className={`sidebar-wrap ${menuOpen ? "sidebar-wrap--open" : ""}`}>
-        <Sidebar page={page} setPage={(p) => { setPage(p); setMenuOpen(false); }} />
+        <Sidebar page={page} setPage={(p) => { setPage(p); setMenuOpen(false); }} user={user} />
       </div>
       <main className="main-content">
         {page === "dashboard" && (

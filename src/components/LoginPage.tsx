@@ -21,6 +21,12 @@ export default function LoginPage({ onLogin }: Props) {
     setInfo("");
   };
 
+  const goTo = (m: AuthMode) => {
+    setMode(m);
+    setError("");
+    setInfo("");
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(""); setInfo("");
@@ -40,14 +46,18 @@ export default function LoginPage({ onLogin }: Props) {
       } else if (mode === "reset-request") {
         if (!form.email) { setError("Введите email"); return; }
         const res = await api.resetRequest(form.email);
-        setInfo(`Токен для сброса: ${res.token}`);
-        setTimeout(() => setMode("reset-confirm"), 2500);
+        if (res.token) {
+          setInfo(`Токен (SMTP не настроен): ${res.token}`);
+        } else {
+          setInfo(res.message || "Письмо отправлено на ваш email");
+        }
+        setTimeout(() => goTo("reset-confirm"), 2500);
 
       } else if (mode === "reset-confirm") {
         if (!form.token || !form.newPassword) { setError("Заполните все поля"); return; }
         await api.resetConfirm(form.token, form.newPassword);
         setInfo("Пароль изменён! Войдите с новым паролем.");
-        setTimeout(() => setMode("login"), 1500);
+        setTimeout(() => goTo("login"), 1500);
       }
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Ошибка");
@@ -59,9 +69,11 @@ export default function LoginPage({ onLogin }: Props) {
   const titles: Record<AuthMode, string> = {
     login: "Войти",
     register: "Зарегистрироваться",
-    "reset-request": "Отправить токен",
+    "reset-request": "Получить токен",
     "reset-confirm": "Сменить пароль",
   };
+
+  const isResetMode = mode === "reset-request" || mode === "reset-confirm";
 
   return (
     <div className="login-page">
@@ -71,38 +83,48 @@ export default function LoginPage({ onLogin }: Props) {
         <div className="login-blob blob-3" />
       </div>
       <div className="login-card animate-fade-in">
-        <div className="login-logo">
-          <div className="logo-icon">
-            <Icon name="TrendingUp" size={28} color="#10B981" />
-          </div>
-          <div>
-            <h1 className="login-title">ФинКонтроль</h1>
-            <p className="login-subtitle">Учёт личных расходов</p>
-          </div>
-        </div>
 
-        {(mode === "login" || mode === "register") && (
+        {/* Шапка с кнопкой назад для режима сброса */}
+        {isResetMode ? (
+          <div className="login-back-header">
+            <button className="back-btn" type="button" onClick={() => goTo("login")}>
+              <Icon name="ArrowLeft" size={16} />
+              <span>Назад к входу</span>
+            </button>
+            <div className="reset-header-title">
+              <Icon name="KeyRound" size={18} color="#FBBF24" />
+              <span>{mode === "reset-request" ? "Восстановление пароля" : "Новый пароль"}</span>
+            </div>
+          </div>
+        ) : (
+          <div className="login-logo">
+            <div className="logo-icon">
+              <Icon name="TrendingUp" size={28} color="#10B981" />
+            </div>
+            <div>
+              <h1 className="login-title">ФинКонтроль</h1>
+              <p className="login-subtitle">Учёт личных расходов</p>
+            </div>
+          </div>
+        )}
+
+        {/* Табы вход/регистрация */}
+        {!isResetMode && (
           <div className="login-tabs">
             <button className={`login-tab ${mode === "login" ? "login-tab--active" : ""}`}
-              onClick={() => { setMode("login"); setError(""); setInfo(""); }}>
+              onClick={() => goTo("login")}>
               Вход
             </button>
             <button className={`login-tab ${mode === "register" ? "login-tab--active" : ""}`}
-              onClick={() => { setMode("register"); setError(""); setInfo(""); }}>
+              onClick={() => goTo("register")}>
               Регистрация
             </button>
           </div>
         )}
 
-        {(mode === "reset-request" || mode === "reset-confirm") && (
-          <div className="reset-header">
-            <Icon name="KeyRound" size={20} color="#FBBF24" />
-            <span>{mode === "reset-request" ? "Восстановление пароля" : "Новый пароль"}</span>
-          </div>
-        )}
-
         <form onSubmit={handleSubmit} className="login-form">
 
+          {/* ── ВХОД ─────────────────────────────────────────────────────── */}
           {mode === "login" && <>
             <div className="field-group">
               <label className="field-label">Логин</label>
@@ -120,11 +142,12 @@ export default function LoginPage({ onLogin }: Props) {
                   value={form.password} onChange={e => set("password", e.target.value)} />
               </div>
             </div>
-            <button type="button" className="forgot-link" onClick={() => { setMode("reset-request"); setError(""); setInfo(""); }}>
+            <button type="button" className="forgot-link" onClick={() => goTo("reset-request")}>
               Забыли пароль?
             </button>
           </>}
 
+          {/* ── РЕГИСТРАЦИЯ ───────────────────────────────────────────────── */}
           {mode === "register" && <>
             <div className="field-group">
               <label className="field-label">Логин</label>
@@ -160,6 +183,7 @@ export default function LoginPage({ onLogin }: Props) {
             </div>
           </>}
 
+          {/* ── СБРОС: ЗАПРОС ТОКЕНА ─────────────────────────────────────── */}
           {mode === "reset-request" && <>
             <p className="reset-hint">Введите email, указанный при регистрации — получите токен для сброса пароля.</p>
             <div className="field-group">
@@ -170,13 +194,14 @@ export default function LoginPage({ onLogin }: Props) {
                   value={form.email} onChange={e => set("email", e.target.value)} />
               </div>
             </div>
-            <button type="button" className="forgot-link" onClick={() => { setMode("login"); setError(""); setInfo(""); }}>
-              ← Назад к входу
+            <button type="button" className="forgot-link" onClick={() => goTo("reset-confirm")}>
+              Уже есть токен? Ввести →
             </button>
           </>}
 
+          {/* ── СБРОС: ВВОД ТОКЕНА ───────────────────────────────────────── */}
           {mode === "reset-confirm" && <>
-            <p className="reset-hint">Введите токен, который вы получили, и придумайте новый пароль.</p>
+            <p className="reset-hint">Введите токен из письма (или из подсказки выше) и придумайте новый пароль.</p>
             <div className="field-group">
               <label className="field-label">Токен сброса</label>
               <div className="field-wrap">
@@ -193,6 +218,9 @@ export default function LoginPage({ onLogin }: Props) {
                   value={form.newPassword} onChange={e => set("newPassword", e.target.value)} />
               </div>
             </div>
+            <button type="button" className="forgot-link" onClick={() => goTo("reset-request")}>
+              ← Запросить токен заново
+            </button>
           </>}
 
           {error && <p className="field-error">{error}</p>}

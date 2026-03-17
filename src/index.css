@@ -337,6 +337,38 @@ input[type="number"]::-webkit-inner-spin-button {
   color: rgba(255, 255, 255, 0.3);
 }
 
+/* ── Login Back Header ────────────────────────────────────────────────────── */
+.login-back-header {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 4px;
+}
+
+.back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.5);
+  transition: color 0.15s;
+  align-self: flex-start;
+}
+.back-btn:hover {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.reset-header-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 16px;
+  font-weight: 600;
+  color: #fff;
+  font-family: "Poppins", sans-serif;
+}
+
 /* ── Login Tabs ───────────────────────────────────────────────────────────── */
 .login-tabs {
   display: flex;
