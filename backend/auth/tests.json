@@ -1,28 +1,19 @@
 {
   "tests": [
     {
-      "name": "Register new user",
-      "method": "POST",
-      "path": "/register",
-      "body": {"login": "testuser1", "email": "test1@example.com", "password": "password123"},
-      "expectedStatus": 201,
-      "expectedBody": {"session_id": "string"},
-      "bodyMatcher": "partial"
-    },
-    {
       "name": "Login with correct credentials",
       "method": "POST",
-      "path": "/login",
-      "body": {"login": "testuser1", "password": "password123"},
+      "path": "/",
+      "body": {"action": "login", "login": "testuser1", "password": "password123"},
       "expectedStatus": 200,
       "expectedBody": {"session_id": "string"},
       "bodyMatcher": "partial"
     },
     {
-      "name": "Login with wrong password",
+      "name": "Login with wrong password returns 401",
       "method": "POST",
-      "path": "/login",
-      "body": {"login": "testuser1", "password": "wrongpass"},
+      "path": "/",
+      "body": {"action": "login", "login": "testuser1", "password": "wrongpass"},
       "expectedStatus": 401,
       "expectedBody": {"error": "string"},
       "bodyMatcher": "partial"

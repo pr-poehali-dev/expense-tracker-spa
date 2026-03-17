@@ -6,66 +6,70 @@ function getSession(): string {
   return localStorage.getItem("session_id") || "";
 }
 
-async function req(url: string, method = "GET", body?: object) {
+async function call(url: string, body: object) {
+  const session = getSession();
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+  if (session) {
+    headers["Authorization"] = `Bearer ${session}`;
+  }
   const res = await fetch(url, {
-    method,
-    headers: {
-      "Content-Type": "application/json",
-      "X-Session-Id": getSession(),
-    },
-    body: body ? JSON.stringify(body) : undefined,
+    method: "POST",
+    headers,
+    body: JSON.stringify(body),
   });
   const data = await res.json();
   if (!res.ok) throw new Error(data.error || "Ошибка запроса");
   return data;
 }
 
-// ── Auth ──────────────────────────────────────────────────────────────────────
 export const api = {
+  // ── Auth ──────────────────────────────────────────────────────────────────
   register: (login: string, email: string, password: string) =>
-    req(`${AUTH_URL}/register`, "POST", { login, email, password }),
+    call(AUTH_URL, { action: "register", login, email, password }),
 
   login: (login: string, password: string) =>
-    req(`${AUTH_URL}/login`, "POST", { login, password }),
+    call(AUTH_URL, { action: "login", login, password }),
 
   logout: () =>
-    req(`${AUTH_URL}/logout`, "POST"),
+    call(AUTH_URL, { action: "logout" }),
 
   me: () =>
-    req(`${AUTH_URL}/me`),
+    call(AUTH_URL, { action: "me" }),
 
   resetRequest: (email: string) =>
-    req(`${AUTH_URL}/reset-request`, "POST", { email }),
+    call(AUTH_URL, { action: "reset-request", email }),
 
   resetConfirm: (token: string, new_password: string) =>
-    req(`${AUTH_URL}/reset-confirm`, "POST", { token, new_password }),
+    call(AUTH_URL, { action: "reset-confirm", token, new_password }),
 
-  // ── Transactions ─────────────────────────────────────────────────────────
+  // ── Transactions ───────────────────────────────────────────────────────────
   getTransactions: () =>
-    req(`${TX_URL}/`),
+    call(TX_URL, { action: "list" }),
 
   addTransaction: (tx: { amount: number; category: string; comment: string; type: string; date?: string }) =>
-    req(`${TX_URL}/`, "POST", tx),
+    call(TX_URL, { action: "add", ...tx }),
 
   updateTransaction: (id: number, tx: { amount: number; category: string; comment: string; type: string }) =>
-    req(`${TX_URL}/${id}`, "PUT", tx),
+    call(TX_URL, { action: "update", id, ...tx }),
 
   removeTransaction: (id: number) =>
-    req(`${TX_URL}/${id}`, "DELETE"),
+    call(TX_URL, { action: "remove", id }),
 
-  // ── Goals ─────────────────────────────────────────────────────────────────
+  // ── Goals & Settings ───────────────────────────────────────────────────────
   getGoal: () =>
-    req(`${GOALS_URL}/goal`),
+    call(GOALS_URL, { action: "get_goal" }),
 
   saveGoal: (goal: { name: string; target: number; current: number }) =>
-    req(`${GOALS_URL}/goal`, "POST", goal),
+    call(GOALS_URL, { action: "save_goal", ...goal }),
 
   fundGoal: (amount: number) =>
-    req(`${GOALS_URL}/goal/fund`, "POST", { amount }),
+    call(GOALS_URL, { action: "fund_goal", amount }),
 
   getSettings: () =>
-    req(`${GOALS_URL}/settings`),
+    call(GOALS_URL, { action: "get_settings" }),
 
   saveSettings: (s: { currency: string; theme: string }) =>
-    req(`${GOALS_URL}/settings`, "POST", s),
+    call(GOALS_URL, { action: "save_settings", ...s }),
 };

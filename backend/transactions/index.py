@@ -1,9 +1,9 @@
 """
-Транзакции пользователя (требует X-Session-Id).
-GET    /       — все транзакции
-POST   /       — {amount, category, comment, type, date?}
-PUT    /{id}   — {amount, category, comment, type}
-DELETE /{id}   — мягкое скрытие (hidden=true)
+Транзакции пользователя.
+POST body {action: "list"}                                         + Authorization
+POST body {action: "add", amount, category, comment, type, date?} + Authorization
+POST body {action: "update", id, amount, category, comment, type} + Authorization
+POST body {action: "remove", id}                                   + Authorization
 """
 
 import json
@@ -14,8 +14,8 @@ SCHEMA = os.environ.get("MAIN_DB_SCHEMA", "t_p83865015_expense_tracker_spa")
 
 CORS = {
     "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type, X-Session-Id",
+    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization",
 }
 
 
@@ -24,14 +24,19 @@ def get_conn():
 
 
 def ok(data, status=200):
-    return {"statusCode": status, "headers": {**CORS, "Content-Type": "application/json"}, "body": json.dumps(data, default=str)}
+    return {"statusCode": status, "headers": {**CORS, "Content-Type": "application/json"}, "body": json.dumps(data, default=str, ensure_ascii=False)}
 
 
 def err(msg, status=400):
-    return {"statusCode": status, "headers": {**CORS, "Content-Type": "application/json"}, "body": json.dumps({"error": msg})}
+    return {"statusCode": status, "headers": {**CORS, "Content-Type": "application/json"}, "body": json.dumps({"error": msg}, ensure_ascii=False)}
 
 
-def get_user_id(conn, session_id: str):
+def get_user_id(conn, event: dict):
+    headers = event.get("headers") or {}
+    auth = headers.get("Authorization") or headers.get("X-Authorization") or ""
+    session_id = auth[7:] if auth.startswith("Bearer ") else auth
+    if not session_id:
+        return None
     cur = conn.cursor()
     cur.execute(
         f"SELECT user_id FROM {SCHEMA}.sessions WHERE id = %s AND expires_at > NOW()",
@@ -46,31 +51,21 @@ def handler(event: dict, context) -> dict:
     if event.get("httpMethod") == "OPTIONS":
         return {"statusCode": 200, "headers": CORS, "body": ""}
 
-    method = event.get("httpMethod", "GET")
-    path = event.get("path", "/")
-    headers = event.get("headers") or {}
-    session_id = headers.get("X-Session-Id", "")
-
     body = {}
-    if event.get("body"):
-        try:
-            body = json.loads(event["body"])
-        except Exception:
-            pass
+    raw_body = event.get("body") or ""
+    if raw_body:
+        body = json.loads(raw_body)
 
     conn = get_conn()
     try:
-        user_id = get_user_id(conn, session_id)
+        user_id = get_user_id(conn, event)
         if not user_id:
             return err("Не авторизован", 401)
 
-        parts = [p for p in path.split("/") if p]
-        tx_id = None
-        if len(parts) >= 2 and parts[-1].isdigit():
-            tx_id = int(parts[-1])
+        action = body.get("action") or ""
 
-        # GET /
-        if method == "GET" and not tx_id:
+        # list
+        if action == "list":
             cur = conn.cursor()
             cur.execute(
                 f"SELECT id, amount, category, comment, type, date FROM {SCHEMA}.transactions "
@@ -82,8 +77,8 @@ def handler(event: dict, context) -> dict:
             txs = [{"id": r[0], "amount": float(r[1]), "category": r[2], "comment": r[3], "type": r[4], "date": r[5].isoformat()} for r in rows]
             return ok({"transactions": txs})
 
-        # POST /
-        if method == "POST" and not tx_id:
+        # add
+        if action == "add":
             amount = body.get("amount")
             category = body.get("category", "")
             comment = body.get("comment", "")
@@ -113,8 +108,9 @@ def handler(event: dict, context) -> dict:
             cur.close()
             return ok({"id": row[0], "date": row[1].isoformat(), "amount": float(amount), "category": category, "comment": comment, "type": tx_type}, 201)
 
-        # PUT /{id}
-        if method == "PUT" and tx_id:
+        # update
+        if action == "update":
+            tx_id = body.get("id")
             amount = body.get("amount")
             category = body.get("category", "")
             comment = body.get("comment", "")
@@ -133,8 +129,9 @@ def handler(event: dict, context) -> dict:
             cur.close()
             return ok({"ok": True})
 
-        # DELETE /{id}
-        if method == "DELETE" and tx_id:
+        # remove
+        if action == "remove":
+            tx_id = body.get("id")
             cur = conn.cursor()
             cur.execute(
                 f"UPDATE {SCHEMA}.transactions SET hidden=TRUE WHERE id=%s AND user_id=%s AND hidden=FALSE RETURNING id",
@@ -147,6 +144,6 @@ def handler(event: dict, context) -> dict:
             cur.close()
             return ok({"ok": True})
 
-        return err("Not found", 404)
+        return err("Unknown action", 400)
     finally:
         conn.close()
