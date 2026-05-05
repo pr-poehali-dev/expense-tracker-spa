@@ -92,6 +92,10 @@ export default function App() {
               setTransactions(prev => [tx, ...prev]);
               setGoal(g => g ? { ...g, current: newCurrent } : g);
             }}
+            onGoalWithdrawn={(tx, newCurrent) => {
+              setTransactions(prev => [tx, ...prev]);
+              setGoal(g => g ? { ...g, current: newCurrent } : g);
+            }}
           />
         )}
         {page === "transactions" && (

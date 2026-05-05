@@ -138,6 +138,51 @@ def handler(event: dict, context) -> dict:
                 }
             })
 
+        # withdraw_goal
+        if action == "withdraw_goal":
+            amount = float(body.get("amount", 0))
+            if amount <= 0:
+                return err("Сумма должна быть больше нуля")
+
+            cur = conn.cursor()
+            cur.execute(f"SELECT id, current FROM {SCHEMA}.goals WHERE user_id = %s", (user_id,))
+            row = cur.fetchone()
+            if not row:
+                cur.close()
+                return err("Цель не найдена")
+
+            goal_id, current = row
+            current = float(current)
+            if amount > current:
+                cur.close()
+                return err("Недостаточно средств на цели")
+
+            new_current = current - amount
+            cur.execute(
+                f"UPDATE {SCHEMA}.goals SET current=%s, updated_at=NOW() WHERE user_id=%s",
+                (new_current, user_id)
+            )
+            cur.execute(
+                f"INSERT INTO {SCHEMA}.transactions (user_id, amount, category, comment, type) "
+                f"VALUES (%s, %s, %s, %s, %s) RETURNING id, date",
+                (user_id, amount, "Доход", "Вывод с финансовой цели", "income")
+            )
+            tx_row = cur.fetchone()
+            conn.commit()
+            cur.close()
+            return ok({
+                "ok": True,
+                "new_current": new_current,
+                "transaction": {
+                    "id": tx_row[0],
+                    "date": tx_row[1].isoformat(),
+                    "amount": amount,
+                    "category": "Доход",
+                    "comment": "Вывод с финансовой цели",
+                    "type": "income"
+                }
+            })
+
         # get_settings
         if action == "get_settings":
             cur = conn.cursor()

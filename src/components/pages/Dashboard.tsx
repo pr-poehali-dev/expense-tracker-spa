@@ -8,12 +8,16 @@ interface Props {
   goal: Goal | null;
   settings: Settings;
   onGoalFunded: (tx: Transaction, newCurrent: number) => void;
+  onGoalWithdrawn?: (tx: Transaction, newCurrent: number) => void;
 }
 
-export default function Dashboard({ transactions, goal, settings, onGoalFunded }: Props) {
+export default function Dashboard({ transactions, goal, settings, onGoalFunded, onGoalWithdrawn }: Props) {
   const [fundAmount, setFundAmount] = useState("");
   const [fundError, setFundError] = useState("");
   const [fundLoading, setFundLoading] = useState(false);
+  const [withdrawAmount, setWithdrawAmount] = useState("");
+  const [withdrawError, setWithdrawError] = useState("");
+  const [withdrawLoading, setWithdrawLoading] = useState(false);
 
   const balance = transactions.reduce((acc, t) => {
     if (t.type === "income") return acc + t.amount;
@@ -40,6 +44,24 @@ export default function Dashboard({ transactions, goal, settings, onGoalFunded }
       setFundError(e instanceof Error ? e.message : "Ошибка");
     } finally {
       setFundLoading(false);
+    }
+  };
+
+  const handleWithdraw = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const amt = parseFloat(withdrawAmount);
+    if (!withdrawAmount || isNaN(amt) || amt <= 0) { setWithdrawError("Введите корректную сумму"); return; }
+    if (goal && amt > goal.current) { setWithdrawError("Недостаточно средств на цели"); return; }
+    setWithdrawLoading(true);
+    try {
+      const res = await api.withdrawGoal(amt);
+      if (onGoalWithdrawn) onGoalWithdrawn(res.transaction, res.new_current);
+      setWithdrawAmount("");
+      setWithdrawError("");
+    } catch (e: unknown) {
+      setWithdrawError(e instanceof Error ? e.message : "Ошибка");
+    } finally {
+      setWithdrawLoading(false);
     }
   };
 
@@ -138,6 +160,23 @@ export default function Dashboard({ transactions, goal, settings, onGoalFunded }
                   Пополнить
                 </button>
               </form>
+
+              {goal.current > 0 && (
+                <form onSubmit={handleWithdraw} className="goal-fund-form" style={{ marginTop: 8 }}>
+                  <div className="field-wrap">
+                    <span className="field-icon currency-sym" style={{ color: "var(--c-text-soft)" }}>−</span>
+                    <input className="field-input" type="number" min="0.01" step="0.01"
+                      placeholder="Вывести на сумму..."
+                      value={withdrawAmount} onChange={e => { setWithdrawAmount(e.target.value); setWithdrawError(""); }} />
+                  </div>
+                  {withdrawError && <p className="field-error" style={{ marginTop: 4 }}>{withdrawError}</p>}
+                  <button className="btn-fund" type="submit" disabled={withdrawLoading}
+                    style={{ background: "var(--c-red, #EF4444)", color: "#fff", border: "none", borderRadius: 8, padding: "8px 16px", display: "flex", alignItems: "center", gap: 6, fontWeight: 600, cursor: "pointer", opacity: withdrawLoading ? 0.7 : 1 }}>
+                    {withdrawLoading ? <span className="spinner" /> : <Icon name="ArrowDownLeft" size={14} />}
+                    Вывести
+                  </button>
+                </form>
+              )}
             </div>
           )}
         </div>

@@ -67,6 +67,9 @@ export const api = {
   fundGoal: (amount: number) =>
     call(GOALS_URL, { action: "fund_goal", amount }),
 
+  withdrawGoal: (amount: number) =>
+    call(GOALS_URL, { action: "withdraw_goal", amount }),
+
   getSettings: () =>
     call(GOALS_URL, { action: "get_settings" }),
 
