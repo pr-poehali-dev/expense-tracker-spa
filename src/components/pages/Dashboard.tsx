@@ -117,7 +117,13 @@ export default function Dashboard({ transactions, goal, settings, onGoalFunded }
                   {formatMoney(goal.current, settings.currency)} из {formatMoney(goal.target, settings.currency)}
                 </span>
               </div>
-              <p className="goal-remain">Осталось: {formatMoney(goal.target - goal.current, settings.currency)}</p>
+              {goal.current >= goal.target ? (
+                <p className="goal-remain" style={{ color: "#10B981", fontWeight: 600 }}>
+                  🎉 Поздравляем! Вы накопили нужную сумму!
+                </p>
+              ) : (
+                <p className="goal-remain">Осталось: {formatMoney(goal.target - goal.current, settings.currency)}</p>
+              )}
 
               <form onSubmit={handleFund} className="goal-fund-form">
                 <div className="field-wrap">
